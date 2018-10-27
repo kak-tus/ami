@@ -16,15 +16,18 @@ func NewQu(opt Options, ropt *redis.ClusterOptions) (*Qu, error) {
 	cCons := make(chan Message, opt.PrefetchCount)
 	r := retrier.New(retrier.Config{RetryPolicy: []time.Duration{time.Second * 1}})
 	cProd := make(chan string, opt.PendingBufferSize)
+	cAck := make(chan Message, opt.PendingBufferSize)
 
 	q := &Qu{
 		rDB:    rDB,
 		wgCons: &sync.WaitGroup{},
 		wgProd: &sync.WaitGroup{},
+		wgAck:  &sync.WaitGroup{},
 		opt:    opt,
 		cCons:  cCons,
 		retr:   r,
 		cProd:  cProd,
+		cAck:   cAck,
 	}
 
 	err := q.init()
@@ -33,18 +36,39 @@ func NewQu(opt Options, ropt *redis.ClusterOptions) (*Qu, error) {
 	}
 
 	go q.produce()
+	go q.ack()
 
 	return q, nil
 }
 
-// Close queue client
-func (q *Qu) Close() {
+// CloseConsumer queue client
+func (q *Qu) CloseConsumer() {
 	q.needClose = true
+
 	q.wgCons.Wait()
 	close(q.cCons)
+	q.closedCons = true
+}
 
+// CloseProducer queue client
+func (q *Qu) CloseProducer() {
 	close(q.cProd)
 	q.wgProd.Wait()
+	q.closedProd = true
+}
+
+// Close queue client
+func (q *Qu) Close() {
+	if !q.closedCons {
+		q.CloseConsumer()
+	}
+
+	if !q.closedProd {
+		q.CloseProducer()
+	}
+
+	close(q.cAck)
+	q.wgAck.Wait()
 
 	q.retr.Stop()
 }

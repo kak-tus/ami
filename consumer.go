@@ -2,6 +2,7 @@ package ami
 
 import (
 	"fmt"
+	"time"
 
 	"git.aqq.me/go/retrier"
 	"github.com/go-redis/redis"
@@ -82,13 +83,53 @@ func (q *Qu) consume(shard int) {
 
 // Ack acknowledges message
 func (q *Qu) Ack(m Message) {
+	q.cAck <- m
+}
+
+func (q *Qu) ack() {
+	q.wgAck.Add(1)
+	defer q.wgAck.Done()
+
+	buf := make([]Message, q.opt.PipeBufferSize)
+	idx := 0
+	started := time.Now()
+
+	for {
+		m, more := <-q.cAck
+
+		if !more {
+			q.sendAck(buf[0:idx])
+			break
+		}
+
+		buf[idx] = m
+		idx++
+
+		if idx < int(q.opt.PipeBufferSize) && time.Now().Sub(started) < q.opt.PipePeriod {
+			continue
+		}
+
+		q.sendAck(buf[0:idx])
+
+		idx = 0
+		started = time.Now()
+	}
+}
+
+func (q *Qu) sendAck(buf []Message) {
+	if len(buf) == 0 {
+		return
+	}
+
 	pipe := q.rDB.Pipeline()
 
 	q.retr.Do(func() *retrier.Error {
-		pipe.XAck(m.Stream, m.Group, m.ID).Err()
+		for _, m := range buf {
+			pipe.XAck(m.Stream, m.Group, m.ID)
 
-		cmd := redis.NewIntCmd("XDEL", m.Stream, m.ID)
-		pipe.Process(cmd)
+			cmd := redis.NewIntCmd("XDEL", m.Stream, m.ID)
+			pipe.Process(cmd)
+		}
 
 		_, err := pipe.Exec()
 

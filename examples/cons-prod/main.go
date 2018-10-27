@@ -19,7 +19,7 @@ func main() {
 			Block:             time.Second,
 			PendingBufferSize: 10000000,
 			PipeBufferSize:    50000,
-			PipePeriod:        time.Microsecond * 10,
+			PipePeriod:        time.Microsecond * 1000,
 		},
 		&redis.ClusterOptions{
 			Addrs: []string{"172.17.0.1:7001", "172.17.0.1:7002"},
@@ -70,9 +70,12 @@ func main() {
 
 	stop = true
 	wg1.Wait()
+	qu.CloseProducer()
 
-	qu.Close()
+	qu.CloseConsumer()
 	wg2.Wait()
+	qu.Close()
+
 	stopped := time.Now()
 
 	fmt.Printf("Produced %d in %f sec, rps %f\n", prod, stopped.Sub(start).Seconds(), float64(prod)/stopped.Sub(start).Seconds())
