@@ -1,2 +1,5 @@
+2018-10-27 v0.1.2
+  - Backlog (received, but not ACK'ed messages) check.
+
 2018-10-27 v0.1.1
   - First release.

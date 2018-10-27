@@ -22,22 +22,37 @@ func (q *Qu) consume(shard int) {
 	group := fmt.Sprintf("qu_%s_group", q.opt.Name)
 	stream := fmt.Sprintf("qu{%d}_%s", shard, q.opt.Name)
 
+	lastID := "0-0"
+	checkBacklog := true
+
 	for {
 		q.retr.Do(func() *retrier.Error {
 			if q.needClose {
 				return nil
 			}
 
+			var id string
+			if checkBacklog {
+				id = lastID
+			} else {
+				id = ">"
+			}
+
 			res := q.rDB.XReadGroup(&redis.XReadGroupArgs{
 				Group:    group,
 				Consumer: q.opt.Consumer,
-				Streams:  []string{stream, ">"},
+				Streams:  []string{stream, id},
 				Count:    q.opt.PrefetchCount,
 				Block:    q.opt.Block,
 			})
 
 			if res.Err() != nil {
 				return retrier.NewError(res.Err(), false)
+			}
+
+			if checkBacklog && len(res.Val()[0].Messages) == 0 {
+				checkBacklog = false
+				return nil
 			}
 
 			for _, s := range res.Val() {
@@ -51,6 +66,8 @@ func (q *Qu) consume(shard int) {
 					}
 
 					q.cCons <- msg
+
+					lastID = msg.ID
 				}
 			}
 
