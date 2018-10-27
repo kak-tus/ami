@@ -82,18 +82,16 @@ func (q *Qu) consume(shard int) {
 
 // Ack acknowledges message
 func (q *Qu) Ack(m Message) {
-	q.retr.Do(func() *retrier.Error {
-		err := q.rDB.XAck(m.Stream, m.Group, m.ID).Err()
-		if err != nil {
-			return retrier.NewError(err, false)
-		}
-
-		return nil
-	})
+	pipe := q.rDB.Pipeline()
 
 	q.retr.Do(func() *retrier.Error {
+		pipe.XAck(m.Stream, m.Group, m.ID).Err()
+
 		cmd := redis.NewIntCmd("XDEL", m.Stream, m.ID)
-		err := q.rDB.Process(cmd)
+		pipe.Process(cmd)
+
+		_, err := pipe.Exec()
+
 		if err != nil {
 			return retrier.NewError(err, false)
 		}
