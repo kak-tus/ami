@@ -17,7 +17,9 @@ func main() {
 			ShardsCount:       10,
 			PrefetchCount:     100,
 			Block:             time.Second,
-			PendingBufferSize: 100000,
+			PendingBufferSize: 10000000,
+			PipeBufferSize:    50000,
+			PipePeriod:        time.Microsecond * 10,
 		},
 		&redis.ClusterOptions{
 			Addrs: []string{"172.17.0.1:7001", "172.17.0.1:7002"},

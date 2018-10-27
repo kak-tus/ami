@@ -28,6 +28,8 @@ type Options struct {
 	PrefetchCount     int64
 	Block             time.Duration
 	PendingBufferSize int64
+	PipeBufferSize    int64
+	PipePeriod        time.Duration
 }
 
 // Message from Qu
