@@ -2,82 +2,31 @@ package ami
 
 import (
 	"fmt"
-	"sync"
-	"time"
 
-	"git.aqq.me/go/retrier"
 	"github.com/go-redis/redis"
 )
 
-// NewQu creates new queue client for ami
-func NewQu(opt Options, ropt *redis.ClusterOptions) (*Qu, error) {
-	rDB := redis.NewClusterClient(ropt)
+func newClient(opt clientOptions) (*client, error) {
+	rDB := redis.NewClusterClient(opt.ropt)
 
-	cCons := make(chan Message, opt.PrefetchCount)
-	r := retrier.New(retrier.Config{RetryPolicy: []time.Duration{time.Second * 1}})
-	cProd := make(chan string, opt.PendingBufferSize)
-	cAck := make(chan Message, opt.PendingBufferSize)
-
-	q := &Qu{
-		rDB:    rDB,
-		wgCons: &sync.WaitGroup{},
-		wgProd: &sync.WaitGroup{},
-		wgAck:  &sync.WaitGroup{},
-		opt:    opt,
-		cCons:  cCons,
-		retr:   r,
-		cProd:  cProd,
-		cAck:   cAck,
+	c := &client{
+		rDB: rDB,
+		opt: opt,
 	}
 
-	err := q.init()
+	err := c.init()
 	if err != nil {
 		return nil, err
 	}
 
-	go q.produce()
-	go q.ack()
-
-	return q, nil
+	return c, nil
 }
 
-// CloseConsumer queue client
-func (q *Qu) CloseConsumer() {
-	q.needClose = true
-
-	q.wgCons.Wait()
-	close(q.cCons)
-	q.closedCons = true
-}
-
-// CloseProducer queue client
-func (q *Qu) CloseProducer() {
-	close(q.cProd)
-	q.wgProd.Wait()
-	q.closedProd = true
-}
-
-// Close queue client
-func (q *Qu) Close() {
-	if !q.closedCons {
-		q.CloseConsumer()
-	}
-
-	if !q.closedProd {
-		q.CloseProducer()
-	}
-
-	close(q.cAck)
-	q.wgAck.Wait()
-
-	q.retr.Stop()
-}
-
-func (q *Qu) init() error {
-	group := fmt.Sprintf("qu_%s_group", q.opt.Name)
-	for i := 0; i < int(q.opt.ShardsCount); i++ {
-		stream := fmt.Sprintf("qu{%d}_%s", i, q.opt.Name)
-		err := q.createShard(stream, group)
+func (c *client) init() error {
+	group := fmt.Sprintf("qu_%s_group", c.opt.name)
+	for i := 0; i < int(c.opt.shardsCount); i++ {
+		stream := fmt.Sprintf("qu{%d}_%s", i, c.opt.name)
+		err := c.createShard(stream, group)
 		if err != nil {
 			return err
 		}
@@ -86,17 +35,17 @@ func (q *Qu) init() error {
 	return nil
 }
 
-func (q *Qu) createShard(stream string, group string) error {
+func (c *client) createShard(stream string, group string) error {
 	xinfo := redis.NewCmd("XINFO", "STREAM", stream)
 
-	err := q.rDB.Process(xinfo)
+	err := c.rDB.Process(xinfo)
 	if err != nil {
 		xgroup := redis.NewCmd("XGROUP", "CREATE", stream, group, "$", "MKSTREAM")
-		q.rDB.Process(xgroup)
+		c.rDB.Process(xgroup)
 	}
 
 	// Check after creation
-	err = q.rDB.Process(xinfo)
+	err = c.rDB.Process(xinfo)
 	if err != nil {
 		return err
 	}

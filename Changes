@@ -1,3 +1,6 @@
+2018-10-27 v0.1.6
+  - New more logical API: different consume and produce objects.
+
 2018-10-27 v0.1.5
   - Speedup ACK.
 

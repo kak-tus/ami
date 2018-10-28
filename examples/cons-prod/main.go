@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	qu, err := ami.NewQu(
-		ami.Options{
+	cn, err := ami.NewConsumer(
+		ami.ConsumerOptions{
 			Name:              "ruthie",
 			Consumer:          "alice",
 			ShardsCount:       10,
@@ -29,7 +29,23 @@ func main() {
 		panic(err)
 	}
 
-	c := qu.Consume()
+	pr, err := ami.NewProducer(
+		ami.ProducerOptions{
+			Name:              "ruthie",
+			ShardsCount:       10,
+			PendingBufferSize: 10000000,
+			PipeBufferSize:    50000,
+			PipePeriod:        time.Microsecond * 1000,
+		},
+		&redis.ClusterOptions{
+			Addrs: []string{"172.17.0.1:7001", "172.17.0.1:7002"},
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	c := cn.Start()
 
 	cons := 0
 	prod := 0
@@ -49,7 +65,7 @@ func main() {
 			if !more {
 				break
 			}
-			qu.Ack(m)
+			cn.Ack(m)
 			cons++
 		}
 		wg2.Done()
@@ -60,7 +76,7 @@ func main() {
 			if stop {
 				break
 			}
-			qu.Send("{}")
+			pr.Send("{}")
 			prod++
 		}
 		wg1.Done()
@@ -70,11 +86,11 @@ func main() {
 
 	stop = true
 	wg1.Wait()
-	qu.CloseProducer()
+	pr.Close()
 
-	qu.CloseConsumer()
+	cn.Stop()
 	wg2.Wait()
-	qu.Close()
+	cn.Close()
 
 	stopped := time.Now()
 

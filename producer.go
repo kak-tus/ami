@@ -2,63 +2,97 @@ package ami
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"git.aqq.me/go/retrier"
 	"github.com/go-redis/redis"
 )
 
-// Send message
-func (q *Qu) Send(m string) {
-	q.cProd <- m
+// NewProducer creates new producer client for Ami
+func NewProducer(opt ProducerOptions, ropt *redis.ClusterOptions) (*Producer, error) {
+	client, err := newClient(clientOptions{
+		name:        opt.Name,
+		shardsCount: opt.ShardsCount,
+		ropt:        ropt,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	retr := retrier.New(retrier.Config{RetryPolicy: []time.Duration{time.Second * 1}})
+	c := make(chan string, opt.PendingBufferSize)
+
+	pr := &Producer{
+		cl:   client,
+		wg:   &sync.WaitGroup{},
+		opt:  opt,
+		c:    c,
+		retr: retr,
+	}
+
+	pr.wg.Add(1)
+	go pr.produce()
+
+	return pr, nil
 }
 
-func (q *Qu) produce() {
-	q.wgProd.Add(1)
-	defer q.wgProd.Done()
+// Close queue client
+func (p *Producer) Close() {
+	close(p.c)
+	p.wg.Wait()
+}
+
+// Send message
+func (p *Producer) Send(m string) {
+	p.c <- m
+}
+
+func (p *Producer) produce() {
+	defer p.wg.Done()
 
 	shard := 0
 
-	buf := make([]string, q.opt.PipeBufferSize)
+	buf := make([]string, p.opt.PipeBufferSize)
 	idx := 0
 	started := time.Now()
 
 	for {
-		m, more := <-q.cProd
+		m, more := <-p.c
 
 		if !more {
-			q.send(shard, buf[0:idx])
+			p.send(shard, buf[0:idx])
 			break
 		}
 
 		buf[idx] = m
 		idx++
 
-		if idx < int(q.opt.PipeBufferSize) && time.Now().Sub(started) < q.opt.PipePeriod {
+		if idx < int(p.opt.PipeBufferSize) && time.Now().Sub(started) < p.opt.PipePeriod {
 			continue
 		}
 
-		q.send(shard, buf[0:idx])
+		p.send(shard, buf[0:idx])
 
 		idx = 0
 		started = time.Now()
 
 		shard++
-		if shard >= int(q.opt.ShardsCount) {
+		if shard >= int(p.opt.ShardsCount) {
 			shard = 0
 		}
 	}
 }
 
-func (q *Qu) send(shard int, buf []string) {
+func (p *Producer) send(shard int, buf []string) {
 	if len(buf) == 0 {
 		return
 	}
 
-	pipe := q.rDB.Pipeline()
-	stream := fmt.Sprintf("qu{%d}_%s", shard, q.opt.Name)
+	pipe := p.cl.rDB.Pipeline()
+	stream := fmt.Sprintf("qu{%d}_%s", shard, p.opt.Name)
 
-	q.retr.Do(func() *retrier.Error {
+	p.retr.Do(func() *retrier.Error {
 		for _, m := range buf {
 			pipe.XAdd(&redis.XAddArgs{
 				Stream: stream,

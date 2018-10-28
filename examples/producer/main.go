@@ -8,13 +8,10 @@ import (
 )
 
 func main() {
-	qu, err := ami.NewQu(
-		ami.Options{
+	pr, err := ami.NewProducer(
+		ami.ProducerOptions{
 			Name:              "ruthie",
-			Consumer:          "alice",
 			ShardsCount:       10,
-			PrefetchCount:     100,
-			Block:             time.Second,
 			PendingBufferSize: 10000000,
 			PipeBufferSize:    50000,
 			PipePeriod:        time.Microsecond * 1000,
@@ -28,7 +25,8 @@ func main() {
 	}
 
 	for i := 0; i < 10000; i++ {
-		qu.Send("{}")
+		pr.Send("{}")
 	}
-	qu.Close()
+
+	pr.Close()
 }

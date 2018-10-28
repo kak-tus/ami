@@ -8,24 +8,58 @@ import (
 	"github.com/go-redis/redis"
 )
 
-// Qu client for ami
-type Qu struct {
-	rDB        *redis.ClusterClient
-	wgCons     *sync.WaitGroup
-	wgProd     *sync.WaitGroup
-	wgAck      *sync.WaitGroup
-	opt        Options
-	cCons      chan Message
-	needClose  bool
-	retr       *retrier.Retrier
-	cProd      chan string
-	cAck       chan Message
-	closedCons bool
-	closedProd bool
+// Message from queue
+type Message struct {
+	Body   string
+	ID     string
+	Stream string
+	Group  string
 }
 
-// Options - options for Qu client for ami
-type Options struct {
+type client struct {
+	rDB *redis.ClusterClient
+	opt clientOptions
+}
+
+type clientOptions struct {
+	name        string
+	shardsCount int8
+	ropt        *redis.ClusterOptions
+}
+
+// Producer client for Ami
+type Producer struct {
+	cl   *client
+	wg   *sync.WaitGroup
+	opt  ProducerOptions
+	retr *retrier.Retrier
+	c    chan string
+}
+
+// ProducerOptions - options for producer client for Ami
+type ProducerOptions struct {
+	Name              string
+	ShardsCount       int8
+	PendingBufferSize int64
+	PipeBufferSize    int64
+	PipePeriod        time.Duration
+}
+
+// Consumer client for Ami
+type Consumer struct {
+	cl       *client
+	wgCons   *sync.WaitGroup
+	wgAck    *sync.WaitGroup
+	opt      ConsumerOptions
+	cCons    chan Message
+	cAck     chan Message
+	needStop bool
+	retr     *retrier.Retrier
+	stopped  bool
+}
+
+// ConsumerOptions - options for consumer client for Ami
+type ConsumerOptions struct {
 	Name              string
 	Consumer          string
 	ShardsCount       int8
@@ -34,12 +68,4 @@ type Options struct {
 	PendingBufferSize int64
 	PipeBufferSize    int64
 	PipePeriod        time.Duration
-}
-
-// Message from Qu
-type Message struct {
-	Body   string
-	ID     string
-	Stream string
-	Group  string
 }

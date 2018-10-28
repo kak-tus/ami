@@ -2,33 +2,82 @@ package ami
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"git.aqq.me/go/retrier"
 	"github.com/go-redis/redis"
 )
 
-// Consume from queue client
-func (q *Qu) Consume() chan Message {
-	for i := 0; i < int(q.opt.ShardsCount); i++ {
-		go q.consume(i)
+// NewConsumer creates new consumer client for Ami
+func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, error) {
+	client, err := newClient(clientOptions{
+		name:        opt.Name,
+		shardsCount: opt.ShardsCount,
+		ropt:        ropt,
+	})
+	if err != nil {
+		return nil, err
 	}
-	return q.cCons
+
+	retr := retrier.New(retrier.Config{RetryPolicy: []time.Duration{time.Second * 1}})
+	cCons := make(chan Message, opt.PrefetchCount)
+	cAck := make(chan Message, opt.PendingBufferSize)
+
+	cn := &Consumer{
+		cl:     client,
+		wgCons: &sync.WaitGroup{},
+		wgAck:  &sync.WaitGroup{},
+		opt:    opt,
+		cCons:  cCons,
+		cAck:   cAck,
+		retr:   retr,
+	}
+
+	cn.wgAck.Add(1)
+	go cn.ack()
+
+	return cn, nil
 }
 
-func (q *Qu) consume(shard int) {
-	q.wgCons.Add(1)
-	defer q.wgCons.Done()
+// Start consume from queue
+func (c *Consumer) Start() chan Message {
+	for i := 0; i < int(c.opt.ShardsCount); i++ {
+		go c.consume(i)
+	}
+	return c.cCons
+}
 
-	group := fmt.Sprintf("qu_%s_group", q.opt.Name)
-	stream := fmt.Sprintf("qu{%d}_%s", shard, q.opt.Name)
+// Stop queue client
+func (c *Consumer) Stop() {
+	c.needStop = true
+
+	c.wgCons.Wait()
+	close(c.cCons)
+	c.stopped = true
+}
+
+// Close queue client
+func (c *Consumer) Close() {
+	close(c.cAck)
+	c.wgAck.Wait()
+
+	c.retr.Stop()
+}
+
+func (c *Consumer) consume(shard int) {
+	c.wgCons.Add(1)
+	defer c.wgCons.Done()
+
+	group := fmt.Sprintf("qu_%s_group", c.opt.Name)
+	stream := fmt.Sprintf("qu{%d}_%s", shard, c.opt.Name)
 
 	lastID := "0-0"
 	checkBacklog := true
 
 	for {
-		q.retr.Do(func() *retrier.Error {
-			if q.needClose {
+		c.retr.Do(func() *retrier.Error {
+			if c.needStop {
 				return nil
 			}
 
@@ -39,12 +88,12 @@ func (q *Qu) consume(shard int) {
 				id = ">"
 			}
 
-			res := q.rDB.XReadGroup(&redis.XReadGroupArgs{
+			res := c.cl.rDB.XReadGroup(&redis.XReadGroupArgs{
 				Group:    group,
-				Consumer: q.opt.Consumer,
+				Consumer: c.opt.Consumer,
 				Streams:  []string{stream, id},
-				Count:    q.opt.PrefetchCount,
-				Block:    q.opt.Block,
+				Count:    c.opt.PrefetchCount,
+				Block:    c.opt.Block,
 			})
 
 			if res.Err() != nil {
@@ -66,7 +115,7 @@ func (q *Qu) consume(shard int) {
 						Group:  group,
 					}
 
-					q.cCons <- msg
+					c.cCons <- msg
 
 					lastID = msg.ID
 				}
@@ -75,55 +124,54 @@ func (q *Qu) consume(shard int) {
 			return nil
 		})
 
-		if q.needClose {
+		if c.needStop {
 			break
 		}
 	}
 }
 
 // Ack acknowledges message
-func (q *Qu) Ack(m Message) {
-	q.cAck <- m
+func (c *Consumer) Ack(m Message) {
+	c.cAck <- m
 }
 
-func (q *Qu) ack() {
-	q.wgAck.Add(1)
-	defer q.wgAck.Done()
+func (c *Consumer) ack() {
+	defer c.wgAck.Done()
 
-	buf := make([]Message, q.opt.PipeBufferSize)
+	buf := make([]Message, c.opt.PipeBufferSize)
 	idx := 0
 	started := time.Now()
 
 	for {
-		m, more := <-q.cAck
+		m, more := <-c.cAck
 
 		if !more {
-			q.sendAck(buf[0:idx])
+			c.sendAck(buf[0:idx])
 			break
 		}
 
 		buf[idx] = m
 		idx++
 
-		if idx < int(q.opt.PipeBufferSize) && time.Now().Sub(started) < q.opt.PipePeriod {
+		if idx < int(c.opt.PipeBufferSize) && time.Now().Sub(started) < c.opt.PipePeriod {
 			continue
 		}
 
-		q.sendAck(buf[0:idx])
+		c.sendAck(buf[0:idx])
 
 		idx = 0
 		started = time.Now()
 	}
 }
 
-func (q *Qu) sendAck(buf []Message) {
+func (c *Consumer) sendAck(buf []Message) {
 	if len(buf) == 0 {
 		return
 	}
 
-	pipe := q.rDB.Pipeline()
+	pipe := c.cl.rDB.Pipeline()
 
-	q.retr.Do(func() *retrier.Error {
+	c.retr.Do(func() *retrier.Error {
 		for _, m := range buf {
 			pipe.XAck(m.Stream, m.Group, m.ID)
 

@@ -9,8 +9,8 @@ import (
 )
 
 func main() {
-	qu, err := ami.NewQu(
-		ami.Options{
+	cn, err := ami.NewConsumer(
+		ami.ConsumerOptions{
 			Name:              "ruthie",
 			Consumer:          "alice",
 			ShardsCount:       10,
@@ -28,7 +28,7 @@ func main() {
 		panic(err)
 	}
 
-	c := qu.Consume()
+	c := cn.Start()
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -40,15 +40,15 @@ func main() {
 				break
 			}
 			println("Got", m.Body, "ID", m.ID)
-			qu.Ack(m)
+			cn.Ack(m)
 		}
 		wg.Done()
 	}()
 
 	time.Sleep(time.Second)
 
-	qu.CloseConsumer()
+	cn.Stop()
 	wg.Wait()
 
-	qu.Close()
+	cn.Close()
 }
