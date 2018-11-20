@@ -1,3 +1,6 @@
+Unreleased
+  - Fix possible consumer stop.
+
 2018-10-28 v0.1.6
   - New more logical API: different consume and produce objects.
 

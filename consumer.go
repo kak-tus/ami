@@ -43,6 +43,7 @@ func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, er
 // Start consume from queue
 func (c *Consumer) Start() chan Message {
 	for i := 0; i < int(c.opt.ShardsCount); i++ {
+		c.wgCons.Add(1)
 		go c.consume(i)
 	}
 	return c.cCons
@@ -66,7 +67,6 @@ func (c *Consumer) Close() {
 }
 
 func (c *Consumer) consume(shard int) {
-	c.wgCons.Add(1)
 	defer c.wgCons.Done()
 
 	group := fmt.Sprintf("qu_%s_group", c.opt.Name)
