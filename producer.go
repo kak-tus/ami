@@ -68,7 +68,17 @@ func (p *Producer) produce() {
 		buf[idx] = m
 		idx++
 
-		if idx < int(p.opt.PipeBufferSize) && time.Now().Sub(started) < p.opt.PipePeriod {
+		doSend := false
+
+		if idx >= int(p.opt.PipeBufferSize) {
+			doSend = true
+		} else if time.Now().Sub(started) >= p.opt.PipePeriod && len(p.c) <= 0 {
+			doSend = true
+		} else {
+			doSend = false
+		}
+
+		if !doSend {
 			continue
 		}
 

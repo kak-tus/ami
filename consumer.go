@@ -160,9 +160,7 @@ func (c *Consumer) ack() {
 
 		if c.cntsAck[m.Stream] >= int(c.opt.PipeBufferSize) {
 			c.sendAckStream(m.Stream)
-		}
-
-		if time.Now().Sub(started) >= c.opt.PipePeriod {
+		} else if time.Now().Sub(started) >= c.opt.PipePeriod && len(c.cAck) <= 0 {
 			c.sendAckAllStreams()
 			started = time.Now()
 		}

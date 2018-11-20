@@ -1,6 +1,6 @@
-2018-11-20 v0.1.7-beta1
+2018-11-20 v0.1.7-beta2
   - Fix possible consumer stop.
-  - Speedup ACK.
+  - Speedup ACK and producing.
 
 2018-10-28 v0.1.6
   - New more logical API: different consume and produce objects.
