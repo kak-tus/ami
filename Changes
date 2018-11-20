@@ -1,5 +1,6 @@
-Unreleased
+2018-11-20 v0.1.6-beta1
   - Fix possible consumer stop.
+  - Speedup ACK.
 
 2018-10-28 v0.1.6
   - New more logical API: different consume and produce objects.

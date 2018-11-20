@@ -56,6 +56,8 @@ type Consumer struct {
 	needStop bool
 	retr     *retrier.Retrier
 	stopped  bool
+	bufAck   map[string][]Message
+	cntsAck  map[string]int
 }
 
 // ConsumerOptions - options for consumer client for Ami

@@ -25,13 +25,15 @@ func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, er
 	cAck := make(chan Message, opt.PendingBufferSize)
 
 	cn := &Consumer{
-		cl:     client,
-		wgCons: &sync.WaitGroup{},
-		wgAck:  &sync.WaitGroup{},
-		opt:    opt,
-		cCons:  cCons,
-		cAck:   cAck,
-		retr:   retr,
+		cl:      client,
+		wgCons:  &sync.WaitGroup{},
+		wgAck:   &sync.WaitGroup{},
+		opt:     opt,
+		cCons:   cCons,
+		cAck:    cAck,
+		retr:    retr,
+		bufAck:  make(map[string][]Message),
+		cntsAck: make(map[string]int),
 	}
 
 	cn.wgAck.Add(1)
@@ -138,41 +140,50 @@ func (c *Consumer) Ack(m Message) {
 func (c *Consumer) ack() {
 	defer c.wgAck.Done()
 
-	buf := make([]Message, c.opt.PipeBufferSize)
-	idx := 0
 	started := time.Now()
 
 	for {
 		m, more := <-c.cAck
 
 		if !more {
-			c.sendAck(buf[0:idx])
+			c.sendAckAllStreams()
 			break
 		}
 
-		buf[idx] = m
-		idx++
-
-		if idx < int(c.opt.PipeBufferSize) && time.Now().Sub(started) < c.opt.PipePeriod {
-			continue
+		if c.bufAck[m.Stream] == nil {
+			c.bufAck[m.Stream] = make([]Message, c.opt.PipeBufferSize)
+			c.cntsAck[m.Stream] = 0
 		}
 
-		c.sendAck(buf[0:idx])
+		c.bufAck[m.Stream][c.cntsAck[m.Stream]] = m
+		c.cntsAck[m.Stream]++
 
-		idx = 0
-		started = time.Now()
+		if c.cntsAck[m.Stream] >= int(c.opt.PipeBufferSize) {
+			c.sendAckStream(m.Stream)
+		}
+
+		if time.Now().Sub(started) >= c.opt.PipePeriod {
+			c.sendAckAllStreams()
+			started = time.Now()
+		}
 	}
 }
 
-func (c *Consumer) sendAck(buf []Message) {
-	if len(buf) == 0 {
+func (c *Consumer) sendAckAllStreams() {
+	for stream := range c.bufAck {
+		c.sendAckStream(stream)
+	}
+}
+
+func (c *Consumer) sendAckStream(stream string) {
+	if c.cntsAck[stream] <= 0 {
 		return
 	}
 
 	pipe := c.cl.rDB.Pipeline()
 
 	c.retr.Do(func() *retrier.Error {
-		for _, m := range buf {
+		for _, m := range c.bufAck[stream][0:c.cntsAck[stream]] {
 			pipe.XAck(m.Stream, m.Group, m.ID)
 
 			cmd := redis.NewIntCmd("XDEL", m.Stream, m.ID)
@@ -187,4 +198,6 @@ func (c *Consumer) sendAck(buf []Message) {
 
 		return nil
 	})
+
+	c.cntsAck[stream] = 0
 }
