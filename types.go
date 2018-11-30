@@ -27,7 +27,7 @@ type clientOptions struct {
 	ropt        *redis.ClusterOptions
 }
 
-// Producer client for Ami
+// Producer client for Ami.
 //
 // Producer lifecycle is:
 //
@@ -88,7 +88,7 @@ type ProducerOptions struct {
 	PipePeriod time.Duration
 }
 
-// Consumer client for Ami
+// Consumer client for Ami.
 //
 // Consumer lifecycle is:
 //
