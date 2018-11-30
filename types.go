@@ -39,9 +39,9 @@ type Producer struct {
 // ProducerOptions - options for producer client for Ami
 //
 // Optimal values for me is:
-// ShardsCount:       10
-// PendingBufferSize: 10000000
-// PipeBufferSize:    50000
+// ShardsCount:       10,
+// PendingBufferSize: 10000000,
+// PipeBufferSize:    50000,
 // PipePeriod:        time.Microsecond * 1000
 type ProducerOptions struct {
 	// Queue name
@@ -86,10 +86,10 @@ type Consumer struct {
 // ConsumerOptions - options for consumer client for Ami.
 //
 // Optimal values for me is:
-// ShardsCount:       10
-// PrefetchCount:     100
-// PendingBufferSize: 10000000
-// PipeBufferSize:    50000
+// ShardsCount:       10,
+// PrefetchCount:     100,
+// PendingBufferSize: 10000000,
+// PipeBufferSize:    50000,
 // PipePeriod:        time.Microsecond * 1000
 type ConsumerOptions struct {
 	// Queue name
