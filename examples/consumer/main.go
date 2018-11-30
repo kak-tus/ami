@@ -15,7 +15,6 @@ func main() {
 			Consumer:          "alice",
 			ShardsCount:       10,
 			PrefetchCount:     100,
-			Block:             time.Second,
 			PendingBufferSize: 10000000,
 			PipeBufferSize:    50000,
 			PipePeriod:        time.Microsecond * 1000,
