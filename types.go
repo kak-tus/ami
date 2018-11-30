@@ -35,7 +35,7 @@ type clientOptions struct {
 //
 // 2. Application send messages with Producer object.
 //
-// 3. Close() - lock until all produced messages will be sent to Redis.
+// 3. Close() - locks until all produced messages will be sent to Redis.
 type Producer struct {
 	cl   *client
 	wg   *sync.WaitGroup
@@ -96,7 +96,7 @@ type ProducerOptions struct {
 //
 // 2. Start() - start read messages from Redis streams and return channel.
 //
-// 3. Application read messages from channel.
+// 3. Application read messages from channel and do Ack() on them.
 //
 // 4. Stop() - stop reading messages from Redis streams and lock until all
 // read messages being processed.

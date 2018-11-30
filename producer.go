@@ -37,13 +37,19 @@ func NewProducer(opt ProducerOptions, ropt *redis.ClusterOptions) (*Producer, er
 	return pr, nil
 }
 
-// Close queue client
+// Close queue client.
+//
+// Function locks until all produced messages will be sent to Redis.
+// If PendingBufferSize has huge value - Close can wait long time.
 func (p *Producer) Close() {
 	close(p.c)
 	p.wg.Wait()
 }
 
-// Send message
+// Send message.
+//
+// Message not sended immediately, but pushed to send buffer and sended to Redis
+// in other goroutine.
 func (p *Producer) Send(m string) {
 	p.c <- m
 }

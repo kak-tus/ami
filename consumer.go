@@ -42,7 +42,9 @@ func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, er
 	return cn, nil
 }
 
-// Start consume from queue
+// Start consume from queue.
+//
+// Start read messages from Redis streams and return channel.
 func (c *Consumer) Start() chan Message {
 	for i := 0; i < int(c.opt.ShardsCount); i++ {
 		c.wgCons.Add(1)
@@ -51,7 +53,10 @@ func (c *Consumer) Start() chan Message {
 	return c.cCons
 }
 
-// Stop queue client
+// Stop queue client.
+//
+// Stop reading messages from Redis streams and lock until all
+// read messages being processed.
 func (c *Consumer) Stop() {
 	c.needStop = true
 
@@ -61,6 +66,8 @@ func (c *Consumer) Stop() {
 }
 
 // Close queue client
+//
+// Lock until all ACK messages will be sent to Redis.
 func (c *Consumer) Close() {
 	close(c.cAck)
 	c.wgAck.Wait()
@@ -138,6 +145,11 @@ func (c *Consumer) consume(shard int) {
 }
 
 // Ack acknowledges message
+//
+// Function not only do XACK call, but additionaly it deletes message
+// from stream with XDELETE.
+// Ack do not do immediately, but pushed to send buffer and sended to Redis
+// in other goroutine.
 func (c *Consumer) Ack(m Message) {
 	c.cAck <- m
 }
