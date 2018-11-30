@@ -39,10 +39,12 @@ type Producer struct {
 // ProducerOptions - options for producer client for Ami
 //
 // Optimal values for me is:
-// ShardsCount:       10,
-// PendingBufferSize: 10000000,
-// PipeBufferSize:    50000,
-// PipePeriod:        time.Microsecond * 1000
+/*
+	ShardsCount:       10,
+	PendingBufferSize: 10000000,
+	PipeBufferSize:    50000,
+	PipePeriod:        time.Microsecond * 1000,
+*/
 type ProducerOptions struct {
 	// Queue name
 	Name string
