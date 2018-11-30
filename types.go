@@ -51,22 +51,32 @@ type ProducerOptions struct {
 
 	// Shard queue along different Redis Cluster nodes
 	//
-	// Ami queues spreads along cluster by default Redis Cluster ability - shards. Every queue has setuped number of streams with same name, but with different shard number. So different streams are placed at different Redis Cluster nodes.
-	// So bigger value get better spreading of queue along cluster. But huge value is not better idea - it got bigger memory usage. Normal value for cluster with 5 masters and 5 slaves - from 5 to 10.
-	// May be later will be added auto-sharding option to place queue on each Redis Cluster node.
-	// Shards count must have identical values in all producers and consumers of this queue.
+	// Ami queues spreads along cluster by default Redis Cluster ability - shards.
+	// Every queue has setuped number of streams with same name, but with
+	// different shard number. So different streams are placed at different Redis
+	// Cluster nodes.
+	// So bigger value get better spreading of queue along cluster. But huge
+	// value is not better idea - it got bigger memory usage. Normal value for
+	// cluster with 5 masters and 5 slaves - from 5 to 10.
+	// May be later will be added auto-sharding option to place queue on each
+	// Redis Cluster node.
+	// Shards count must have identical values in all producers and consumers of
+	// this queue.
 	ShardsCount int8
 
 	// Limits maximum amount of ACK messages queue.
 	// Bigger value got better ACK perfomance and bigger memory usage.
-	// If you your process dies with big amount of ACKed messages, but not already sended to Redis - ACKs will be lost and messages will be processed again.
+	// If you your process dies with big amount of ACKed messages, but not already
+	// sended to Redis - ACKs will be lost and messages will be processed again.
 	PendingBufferSize int64
 
-	// Request to Redis sended in pipe mode with setuped numbers of requests in one batch.
+	// Request to Redis sended in pipe mode with setuped numbers of requests in
+	// one batch.
 	// Bigger value get better perfomance.
 	PipeBufferSize int64
 
-	// If there is no full batch collected - pipe will be sended every setuped period.
+	// If there is no full batch collected - pipe will be sended every setuped
+	// period.
 	PipePeriod time.Duration
 }
 
@@ -106,7 +116,8 @@ type ConsumerOptions struct {
 	// be in stream forever.
 	// If new consumer starts with same name - it got unprocessed messages.
 	//
-	// Also, if you start two consumers with same name at the same time - they will got same
+	// Also, if you start two consumers with same name at the same time - they
+	// will got same
 	// messages, processes them, and only one can ACK message, and second will
 	// retry ACKing of this message forever.
 	//
@@ -116,10 +127,17 @@ type ConsumerOptions struct {
 
 	// Shard queue along different Redis Cluster nodes.
 	//
-	// Ami queues spreads along cluster by default Redis Cluster ability - shards. Every queue has setuped number of streams with same name, but with different shard number. So different streams are placed at different Redis Cluster nodes.
-	// So bigger value get better spreading of queue along cluster. But huge value is not better idea - it got bigger memory usage. Normal value for cluster with 5 masters and 5 slaves - from 5 to 10.
-	// May be later will be added auto-sharding option to place queue on each Redis Cluster node.
-	// Shards count must have identical values in all producers and consumers of this queue.
+	// Ami queues spreads along cluster by default Redis Cluster ability - shards.
+	// Every queue has setuped number of streams with same name, but with
+	// different shard number. So different streams are placed at different
+	// Redis Cluster nodes.
+	// So bigger value get better spreading of queue along cluster. But huge
+	// value is not better idea - it got bigger memory usage. Normal value for
+	// cluster with 5 masters and 5 slaves - from 5 to 10.
+	// May be later will be added auto-sharding option to place queue on each
+	// Redis Cluster node.
+	// Shards count must have identical values in all producers and consumers of
+	// this queue.
 	ShardsCount int8
 
 	// Maximum amount of messages that can be read from queue at same time.
@@ -127,27 +145,34 @@ type ConsumerOptions struct {
 	// Ami preloads some amount of messages from all shards.
 	// So, this value:
 	// - limits consumer channel length;
-	// - limits maximum amount of messages, that will be read from one shard at one read operation.
-	// Bigger PrefetchCount got bigger memory usage, but can get better perfomance.
+	// - limits maximum amount of messages, that will be read from one shard at
+	// one read operation.
+	// Bigger PrefetchCount got bigger memory usage, but can get better
+	// perfomance.
 	PrefetchCount int64
 
 	// BLOCK option of XREADGROUP Redis command
 	// https://redis.io/topics/streams-intro
 	// Set it to other then 0 value only if you know what you do
 	//
-	// If you set this value greater then 0, Ami will use this value to block XREADGROUP for this period.
+	// If you set this value greater then 0, Ami will use this value to block
+	// XREADGROUP for this period.
 	// Otherwise Ami will use default value - 10 seconds.
 	Block time.Duration
 
 	// Limits maximum amount of ACK messages queue.
 	// Bigger value got better ACK perfomance and bigger memory usage.
-	// If you your process dies with big amount of ACKed messages, but not already sended to Redis - ACKs will be lost and messages will be processed again.
+	// If you your process dies with big amount of ACKed messages, but not
+	// already sended to Redis - ACKs will be lost and messages will be
+	// processed again.
 	PendingBufferSize int64
 
-	// Request to Redis sended in pipe mode with setuped numbers of requests in one batch.
+	// Request to Redis sended in pipe mode with setuped numbers of requests in
+	// one batch.
 	// Bigger value get better perfomance.
 	PipeBufferSize int64
 
-	// If there is no full batch collected - pipe will be sended every setuped period.
+	// If there is no full batch collected - pipe will be sended every setuped
+	// period.
 	PipePeriod time.Duration
 }
