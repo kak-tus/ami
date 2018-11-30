@@ -30,8 +30,11 @@ type clientOptions struct {
 // Producer client for Ami
 //
 // Producer lifecycle is:
+//
 // 1. Get Producer object.
+//
 // 2. Application send messages with Producer object.
+//
 // 3. Close() - lock until all produced messages will be sent to Redis.
 type Producer struct {
 	cl   *client
@@ -88,11 +91,16 @@ type ProducerOptions struct {
 // Consumer client for Ami
 //
 // Consumer lifecycle is:
+//
 // 1. Get Consumer object.
+//
 // 2. Start() - start read messages from Redis streams and return channel.
+//
 // 3. Application read messages from channel.
+//
 // 4. Stop() - stop reading messages from Redis streams and lock until all
 // read messages being processed.
+//
 // 5. Close() - lock until all ACK messages will be sent to Redis.
 type Consumer struct {
 	cl       *client
