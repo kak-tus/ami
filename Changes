@@ -1,3 +1,6 @@
+2018-11-30 v0.1.8
+  - Fix infinite blocking of consumer in case of no messages.
+
 2018-11-22 v0.1.7
   - Fix possible consumer stop.
   - Speedup ACK and producing.

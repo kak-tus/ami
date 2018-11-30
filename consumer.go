@@ -77,6 +77,11 @@ func (c *Consumer) consume(shard int) {
 	lastID := "0-0"
 	checkBacklog := true
 
+	block := time.Second * 10
+	if c.opt.Block > 0 {
+		block = c.opt.Block
+	}
+
 	for {
 		c.retr.Do(func() *retrier.Error {
 			if c.needStop {
@@ -95,7 +100,7 @@ func (c *Consumer) consume(shard int) {
 				Consumer: c.opt.Consumer,
 				Streams:  []string{stream, id},
 				Count:    c.opt.PrefetchCount,
-				Block:    c.opt.Block,
+				Block:    block,
 			})
 
 			if res.Err() != nil {
