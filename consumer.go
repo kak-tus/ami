@@ -13,8 +13,8 @@ import (
 func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, error) {
 	client, err := newClient(clientOptions{
 		name:        opt.Name,
-		shardsCount: opt.ShardsCount,
 		ropt:        ropt,
+		shardsCount: opt.ShardsCount,
 	})
 	if err != nil {
 		return nil, err
@@ -25,15 +25,16 @@ func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, er
 	cAck := make(chan Message, opt.PendingBufferSize)
 
 	cn := &Consumer{
-		cl:      client,
-		wgCons:  &sync.WaitGroup{},
-		wgAck:   &sync.WaitGroup{},
-		opt:     opt,
-		cCons:   cCons,
-		cAck:    cAck,
-		retr:    retr,
 		bufAck:  make(map[string][]Message),
+		cAck:    cAck,
+		cCons:   cCons,
+		cl:      client,
 		cntsAck: make(map[string]int),
+		notif:   opt.ErrorNotifier,
+		opt:     opt,
+		retr:    retr,
+		wgAck:   &sync.WaitGroup{},
+		wgCons:  &sync.WaitGroup{},
 	}
 
 	cn.wgAck.Add(1)
@@ -76,8 +77,6 @@ func (c *Consumer) Close() {
 }
 
 func (c *Consumer) consume(shard int) {
-	defer c.wgCons.Done()
-
 	group := fmt.Sprintf("qu_%s_group", c.opt.Name)
 	stream := fmt.Sprintf("qu{%d}_%s", shard, c.opt.Name)
 
@@ -90,58 +89,72 @@ func (c *Consumer) consume(shard int) {
 	}
 
 	for {
-		c.retr.Do(func() *retrier.Error {
-			if c.needStop {
-				return nil
-			}
+		if c.needStop {
+			break
+		}
 
-			var id string
-			if checkBacklog {
-				id = lastID
-			} else {
-				id = ">"
-			}
+		var id string
+		if checkBacklog {
+			id = lastID
+		} else {
+			id = ">"
+		}
 
-			res := c.cl.rDB.XReadGroup(&redis.XReadGroupArgs{
+		var res []redis.XStream
+
+		err := c.retr.Do(func() *retrier.Error {
+			var err error
+
+			res, err = c.cl.rDB.XReadGroup(&redis.XReadGroupArgs{
 				Group:    group,
 				Consumer: c.opt.Consumer,
 				Streams:  []string{stream, id},
 				Count:    c.opt.PrefetchCount,
 				Block:    block,
-			})
+			}).Result()
 
-			if res.Err() != nil {
-				return retrier.NewError(res.Err(), false)
-			}
-
-			if checkBacklog && len(res.Val()[0].Messages) == 0 {
-				checkBacklog = false
-				return nil
-			}
-
-			for _, s := range res.Val() {
-				for _, m := range s.Messages {
-					msg := Message{
-						// TODO FIX move to failed
-						Body:   m.Values["m"].(string),
-						ID:     m.ID,
-						Stream: stream,
-						Group:  group,
-					}
-
-					c.cCons <- msg
-
-					lastID = msg.ID
+			if err != nil && err != redis.Nil {
+				if c.notif != nil {
+					c.notif.AmiError(err)
 				}
+
+				return retrier.NewError(err, false)
 			}
 
 			return nil
 		})
 
-		if c.needStop {
-			break
+		if err != nil {
+			if c.notif != nil {
+				c.notif.AmiError(err)
+			}
+
+			continue
+		}
+
+		if checkBacklog && len(res[0].Messages) == 0 {
+			checkBacklog = false
+			continue
+		}
+
+		for _, s := range res {
+			for _, m := range s.Messages {
+				msg := Message{
+					// TODO FIX move to failed
+					Body:   m.Values["m"].(string),
+					ID:     m.ID,
+					Stream: stream,
+					Group:  group,
+				}
+
+				c.cCons <- msg
+
+				lastID = msg.ID
+			}
 		}
 	}
+
+	c.wgCons.Done()
 }
 
 // Ack acknowledges message
@@ -195,24 +208,34 @@ func (c *Consumer) sendAckStream(stream string) {
 		return
 	}
 
-	pipe := c.cl.rDB.Pipeline()
+	err := c.retr.Do(func() *retrier.Error {
+		pipe := c.cl.rDB.Pipeline()
 
-	c.retr.Do(func() *retrier.Error {
 		for _, m := range c.bufAck[stream][0:c.cntsAck[stream]] {
 			pipe.XAck(m.Stream, m.Group, m.ID)
 
 			cmd := redis.NewIntCmd("XDEL", m.Stream, m.ID)
-			pipe.Process(cmd)
+
+			// Error processed in exec
+			_ = pipe.Process(cmd)
 		}
 
 		_, err := pipe.Exec()
 
 		if err != nil {
+			if c.notif != nil {
+				c.notif.AmiError(err)
+			}
+
 			return retrier.NewError(err, false)
 		}
 
 		return nil
 	})
+
+	if err != nil && c.notif != nil {
+		c.notif.AmiError(err)
+	}
 
 	c.cntsAck[stream] = 0
 }

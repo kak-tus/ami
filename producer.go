@@ -13,8 +13,8 @@ import (
 func NewProducer(opt ProducerOptions, ropt *redis.ClusterOptions) (*Producer, error) {
 	client, err := newClient(clientOptions{
 		name:        opt.Name,
-		shardsCount: opt.ShardsCount,
 		ropt:        ropt,
+		shardsCount: opt.ShardsCount,
 	})
 	if err != nil {
 		return nil, err
@@ -24,11 +24,12 @@ func NewProducer(opt ProducerOptions, ropt *redis.ClusterOptions) (*Producer, er
 	c := make(chan string, opt.PendingBufferSize)
 
 	pr := &Producer{
-		cl:   client,
-		wg:   &sync.WaitGroup{},
-		opt:  opt,
-		c:    c,
-		retr: retr,
+		c:     c,
+		cl:    client,
+		notif: opt.ErrorNotifier,
+		opt:   opt,
+		retr:  retr,
+		wg:    &sync.WaitGroup{},
 	}
 
 	pr.wg.Add(1)
@@ -55,8 +56,6 @@ func (p *Producer) Send(m string) {
 }
 
 func (p *Producer) produce() {
-	defer p.wg.Done()
-
 	shard := 0
 
 	buf := make([]string, p.opt.PipeBufferSize)
@@ -74,7 +73,7 @@ func (p *Producer) produce() {
 		buf[idx] = m
 		idx++
 
-		doSend := false
+		var doSend bool
 
 		if idx >= int(p.opt.PipeBufferSize) {
 			doSend = true
@@ -98,6 +97,8 @@ func (p *Producer) produce() {
 			shard = 0
 		}
 	}
+
+	p.wg.Done()
 }
 
 func (p *Producer) send(shard int, buf []string) {
@@ -105,10 +106,11 @@ func (p *Producer) send(shard int, buf []string) {
 		return
 	}
 
-	pipe := p.cl.rDB.Pipeline()
 	stream := fmt.Sprintf("qu{%d}_%s", shard, p.opt.Name)
 
-	p.retr.Do(func() *retrier.Error {
+	err := p.retr.Do(func() *retrier.Error {
+		pipe := p.cl.rDB.Pipeline()
+
 		for _, m := range buf {
 			pipe.XAdd(&redis.XAddArgs{
 				Stream: stream,
@@ -119,9 +121,17 @@ func (p *Producer) send(shard int, buf []string) {
 
 		_, err := pipe.Exec()
 		if err != nil {
+			if p.notif != nil {
+				p.notif.AmiError(err)
+			}
+
 			return retrier.NewError(err, false)
 		}
 
 		return nil
 	})
+
+	if err != nil && p.notif != nil {
+		p.notif.AmiError(err)
+	}
 }

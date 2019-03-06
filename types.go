@@ -17,14 +17,14 @@ type Message struct {
 }
 
 type client struct {
-	rDB *redis.ClusterClient
 	opt clientOptions
+	rDB *redis.ClusterClient
 }
 
 type clientOptions struct {
 	name        string
-	shardsCount int8
 	ropt        *redis.ClusterOptions
+	shardsCount int8
 }
 
 // Producer client for Ami.
@@ -37,11 +37,12 @@ type clientOptions struct {
 //
 // 3. Close() - locks until all produced messages will be sent to Redis.
 type Producer struct {
-	cl   *client
-	wg   *sync.WaitGroup
-	opt  ProducerOptions
-	retr *retrier.Retrier
-	c    chan string
+	c     chan string
+	cl    *client
+	notif ErrorNotifier
+	opt   ProducerOptions
+	retr  *retrier.Retrier
+	wg    *sync.WaitGroup
 }
 
 // ProducerOptions - options for producer client for Ami
@@ -86,6 +87,10 @@ type ProducerOptions struct {
 	// If there is no full batch collected - pipe will be sended every setuped
 	// period.
 	PipePeriod time.Duration
+
+	// If you set optional ErrorNotifier, you will receiving errors notifications
+	// in interface function
+	ErrorNotifier ErrorNotifier
 }
 
 // Consumer client for Ami.
@@ -103,17 +108,18 @@ type ProducerOptions struct {
 //
 // 5. Close() - lock until all ACK messages will be sent to Redis.
 type Consumer struct {
-	cl       *client
-	wgCons   *sync.WaitGroup
-	wgAck    *sync.WaitGroup
-	opt      ConsumerOptions
-	cCons    chan Message
+	bufAck   map[string][]Message
 	cAck     chan Message
+	cCons    chan Message
+	cl       *client
+	cntsAck  map[string]int
 	needStop bool
+	notif    ErrorNotifier
+	opt      ConsumerOptions
 	retr     *retrier.Retrier
 	stopped  bool
-	bufAck   map[string][]Message
-	cntsAck  map[string]int
+	wgAck    *sync.WaitGroup
+	wgCons   *sync.WaitGroup
 }
 
 // ConsumerOptions - options for consumer client for Ami.
@@ -196,4 +202,14 @@ type ConsumerOptions struct {
 	// If there is no full batch collected - pipe will be sended every setuped
 	// period.
 	PipePeriod time.Duration
+
+	// If you set optional ErrorNotifier, you will receiving errors notifications
+	// in interface function
+	ErrorNotifier ErrorNotifier
+}
+
+// ErrorNotifier is the interface for receive error notifications
+type ErrorNotifier interface {
+	// Function is called for every error
+	AmiError(error)
 }
