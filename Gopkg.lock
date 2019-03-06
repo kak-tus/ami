@@ -16,15 +16,14 @@
     "internal/hashtag",
     "internal/pool",
     "internal/proto",
-    "internal/singleflight",
     "internal/util"
   ]
-  revision = "b3d9bf10f6666b2ee5100a6f3f84f4caf3b4e37d"
-  version = "v6.14.2"
+  revision = "d22fde8721cc915a55aeb6b00944a76a92bfeb6e"
+  version = "v6.15.2"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "fba38b016e5ab9cfd75d1e09e9dc15629044f6841d78974d24d34968813a6bea"
+  inputs-digest = "3e268db494a0c615cc12cb76cf276a031e9cca762497a89b6fee1822d528fe05"
   solver-name = "gps-cdcl"
   solver-version = 1
