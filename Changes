@@ -1,4 +1,4 @@
-unreleased v0.1.9
+2019-03-09 v0.1.9
   - Update vendored redis to 6.15.2.
   - Add error processing with optional ErrorNotifier interface.
   - Use multiple ids in single command to do ACK.
