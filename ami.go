@@ -2,11 +2,20 @@ package ami
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/go-redis/redis"
 )
 
 func newClient(opt clientOptions) (*client, error) {
+	// Fix for users, that forget set timeouts
+	if opt.ropt.ReadTimeout < time.Second*30 {
+		opt.ropt.ReadTimeout = time.Second * 30
+	}
+	if opt.ropt.WriteTimeout < time.Second*30 {
+		opt.ropt.WriteTimeout = time.Second * 30
+	}
+
 	rDB := redis.NewClusterClient(opt.ropt)
 
 	c := &client{

@@ -10,6 +10,16 @@ import (
 )
 
 // NewConsumer creates new consumer client for Ami
+//
+// Note, that you MUST set in ClusterOptions ReadTimeout and WriteTimeout to at
+// least 30-60 seconds, if you set big PipeBufferSize (50000 in examples) and
+// if you do producing big messages.
+// Reason: one full buffer is send in one big-sized query to Redis.
+// So this big query may don't be completed in time and will be retransmitted,
+// may be forewer retransmitted.
+// This is especially strictly for Producer, because it send big queries with
+// big messages. And not so strictly for Consumer, because it send big queries
+// with not so big messages (only ids of ACKed messages).
 func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, error) {
 	client, err := newClient(clientOptions{
 		name:        opt.Name,
@@ -25,16 +35,14 @@ func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, er
 	cAck := make(chan Message, opt.PendingBufferSize)
 
 	cn := &Consumer{
-		bufAck:  make(map[string][]Message),
-		cAck:    cAck,
-		cCons:   cCons,
-		cl:      client,
-		cntsAck: make(map[string]int),
-		notif:   opt.ErrorNotifier,
-		opt:     opt,
-		retr:    retr,
-		wgAck:   &sync.WaitGroup{},
-		wgCons:  &sync.WaitGroup{},
+		cAck:   cAck,
+		cCons:  cCons,
+		cl:     client,
+		notif:  opt.ErrorNotifier,
+		opt:    opt,
+		retr:   retr,
+		wgAck:  &sync.WaitGroup{},
+		wgCons: &sync.WaitGroup{},
 	}
 
 	cn.wgAck.Add(1)
@@ -83,8 +91,9 @@ func (c *Consumer) consume(shard int) {
 	lastID := "0-0"
 	checkBacklog := true
 
-	block := time.Second * 10
-	if c.opt.Block > 0 {
+	// Millisecond is minimal for Redis
+	block := time.Second * 1
+	if c.opt.Block != 0 {
 		block = c.opt.Block
 	}
 
@@ -106,11 +115,11 @@ func (c *Consumer) consume(shard int) {
 			var err error
 
 			res, err = c.cl.rDB.XReadGroup(&redis.XReadGroupArgs{
-				Group:    group,
-				Consumer: c.opt.Consumer,
-				Streams:  []string{stream, id},
-				Count:    c.opt.PrefetchCount,
 				Block:    block,
+				Consumer: c.opt.Consumer,
+				Count:    c.opt.PrefetchCount,
+				Group:    group,
+				Streams:  []string{stream, id},
 			}).Result()
 
 			if err != nil && err != redis.Nil {
@@ -142,9 +151,9 @@ func (c *Consumer) consume(shard int) {
 				msg := Message{
 					// TODO FIX move to failed
 					Body:   m.Values["m"].(string),
+					Group:  group,
 					ID:     m.ID,
 					Stream: stream,
-					Group:  group,
 				}
 
 				c.cCons <- msg
@@ -168,57 +177,83 @@ func (c *Consumer) Ack(m Message) {
 }
 
 func (c *Consumer) ack() {
-	defer c.wgAck.Done()
-
 	started := time.Now()
+	tick := time.NewTicker(c.opt.PipePeriod)
+
+	toAck := make(map[string][]Message)
+	cnt := make(map[string]int)
 
 	for {
-		m, more := <-c.cAck
+		var doStop bool
+		var stream string
 
-		if !more {
-			c.sendAckAllStreams()
+		select {
+		case m, more := <-c.cAck:
+			if !more {
+				doStop = true
+			} else {
+				stream = m.Stream
+
+				if toAck[stream] == nil {
+					toAck[stream] = make([]Message, c.opt.PipeBufferSize)
+					cnt[stream] = 0
+				}
+
+				toAck[stream][cnt[stream]] = m
+				cnt[stream]++
+			}
+		case <-tick.C:
+		}
+
+		if doStop {
+			c.sendAckAllStreams(toAck, cnt)
 			break
 		}
 
-		if c.bufAck[m.Stream] == nil {
-			c.bufAck[m.Stream] = make([]Message, c.opt.PipeBufferSize)
-			c.cntsAck[m.Stream] = 0
-		}
-
-		c.bufAck[m.Stream][c.cntsAck[m.Stream]] = m
-		c.cntsAck[m.Stream]++
-
-		if c.cntsAck[m.Stream] >= int(c.opt.PipeBufferSize) {
-			c.sendAckStream(m.Stream)
+		if cnt[stream] >= int(c.opt.PipeBufferSize) {
+			c.sendAckStreamWithLock(toAck[stream][0:cnt[stream]])
+			cnt[stream] = 0
 		} else if time.Now().Sub(started) >= c.opt.PipePeriod && len(c.cAck) <= 0 {
-			c.sendAckAllStreams()
+			// Don't send by time if there are more messages in channel
+			// Prefer to collect them in batch to speedup producing
+			c.sendAckAllStreams(toAck, cnt)
 			started = time.Now()
 		}
 	}
+
+	c.wgAck.Done()
 }
 
-func (c *Consumer) sendAckAllStreams() {
-	for stream := range c.bufAck {
-		c.sendAckStream(stream)
+func (c *Consumer) sendAckAllStreams(toAck map[string][]Message, cnt map[string]int) {
+	for stream := range toAck {
+		c.sendAckStreamWithLock(toAck[stream][0:cnt[stream]])
+		cnt[stream] = 0
 	}
 }
 
-func (c *Consumer) sendAckStream(stream string) {
-	if c.cntsAck[stream] <= 0 {
+func (c *Consumer) sendAckStreamWithLock(lst []Message) {
+	if len(lst) == 0 {
 		return
 	}
 
+	ids := make([]string, len(lst))
+	for i, m := range lst {
+		ids[i] = m.ID
+	}
+
+	c.wgAck.Add(1)
+	go func() {
+		c.sendAckStream(lst[0].Stream, lst[0].Group, ids)
+		c.wgAck.Done()
+	}()
+}
+
+func (c *Consumer) sendAckStream(stream string, group string, ids []string) {
 	err := c.retr.Do(func() *retrier.Error {
-		pipe := c.cl.rDB.Pipeline()
+		pipe := c.cl.rDB.TxPipeline()
 
-		for _, m := range c.bufAck[stream][0:c.cntsAck[stream]] {
-			pipe.XAck(m.Stream, m.Group, m.ID)
-
-			cmd := redis.NewIntCmd("XDEL", m.Stream, m.ID)
-
-			// Error processed in exec
-			_ = pipe.Process(cmd)
-		}
+		pipe.XAck(stream, group, ids...)
+		pipe.XDel(stream, ids...)
 
 		_, err := pipe.Exec()
 
@@ -236,6 +271,4 @@ func (c *Consumer) sendAckStream(stream string) {
 	if err != nil && c.notif != nil {
 		c.notif.AmiError(err)
 	}
-
-	c.cntsAck[stream] = 0
 }

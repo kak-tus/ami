@@ -18,7 +18,7 @@ func main() {
 			PendingBufferSize: 10000000,
 			PipeBufferSize:    50000,
 			PipePeriod:        time.Microsecond * 1000,
-			PrefetchCount:     100,
+			PrefetchCount:     1000,
 			ShardsCount:       10,
 		},
 		&redis.ClusterOptions{
@@ -50,19 +50,34 @@ func main() {
 		panic(err)
 	}
 
+	start := time.Now()
+	prod := 1000000
+
+	for i := 0; i < prod; i++ {
+		pr.Send("{}")
+	}
+
+	pr.Close()
+
+	stopped := time.Now()
+
+	fmt.Printf(
+		"Produced %d in %f sec, rps %f\n",
+		prod,
+		stopped.Sub(start).Seconds(),
+		float64(prod)/stopped.Sub(start).Seconds(),
+	)
+
 	c := cn.Start()
 
 	cons := 0
-	prod := 0
 
-	wg1 := sync.WaitGroup{}
-	wg1.Add(1)
-	wg2 := sync.WaitGroup{}
-	wg2.Add(1)
+	lock := sync.Mutex{}
+	lock.Lock()
 
-	stop := false
+	toAck := make([]ami.Message, 0)
 
-	start := time.Now()
+	start = time.Now()
 
 	go func() {
 		for {
@@ -70,37 +85,42 @@ func main() {
 			if !more {
 				break
 			}
-			cn.Ack(m)
+
+			toAck = append(toAck, m)
 			cons++
 		}
-		wg2.Done()
+
+		lock.Unlock()
 	}()
 
-	go func() {
-		for {
-			if stop {
-				break
-			}
-			pr.Send("{}")
-			prod++
-		}
-		wg1.Done()
-	}()
-
-	time.Sleep(time.Second * 1)
-
-	stop = true
-	wg1.Wait()
-	pr.Close()
-
+	time.Sleep(time.Second)
 	cn.Stop()
-	wg2.Wait()
+	lock.Lock()
+
+	stopped = time.Now()
+	fmt.Printf(
+		"Consumed %d in %f sec, rps %f\n",
+		cons,
+		stopped.Sub(start).Seconds(),
+		float64(cons)/stopped.Sub(start).Seconds(),
+	)
+
+	start = time.Now()
+
+	for _, m := range toAck {
+		cn.Ack(m)
+	}
+
 	cn.Close()
 
-	stopped := time.Now()
+	stopped = time.Now()
 
-	fmt.Printf("Produced %d in %f sec, rps %f\n", prod, stopped.Sub(start).Seconds(), float64(prod)/stopped.Sub(start).Seconds())
-	fmt.Printf("Consumed %d in %f sec, rps %f\n", cons, stopped.Sub(start).Seconds(), float64(cons)/stopped.Sub(start).Seconds())
+	fmt.Printf(
+		"Acked %d in %f sec, rps %f\n",
+		cons,
+		stopped.Sub(start).Seconds(),
+		float64(cons)/stopped.Sub(start).Seconds(),
+	)
 }
 
 type errorLogger struct{}

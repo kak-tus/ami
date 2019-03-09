@@ -108,11 +108,9 @@ type ProducerOptions struct {
 //
 // 5. Close() - lock until all ACK messages will be sent to Redis.
 type Consumer struct {
-	bufAck   map[string][]Message
 	cAck     chan Message
 	cCons    chan Message
 	cl       *client
-	cntsAck  map[string]int
 	needStop bool
 	notif    ErrorNotifier
 	opt      ConsumerOptions
@@ -184,7 +182,8 @@ type ConsumerOptions struct {
 	//
 	// If you set this value greater then 0, Ami will use this value to block
 	// XREADGROUP for this period.
-	// Otherwise Ami will use default value - 10 seconds.
+	// Otherwise Ami will use default value - 1 second.
+	// If you set this value lower then 0 - blocking will not be used.
 	Block time.Duration
 
 	// Limits maximum amount of ACK messages queue.
