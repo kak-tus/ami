@@ -9,9 +9,17 @@ Go client to reliable queues based on [Redis Cluster Streams](https://redis.io/t
 Perfomance is dependent from:
 - Redis Cluster nodes count;
 - ping RTT from client to Redis Cluster master nodes;
+- network speed between nodes;
+- message sizes;
 - Ami configuration.
 
-As example, 10-nodes Redis Cluster with half of nodes in other datacenter (50 msec ping) got near 80000 rps produced from one client.
+As example, 10-nodes Redis Cluster with half of nodes in other datacenter (50 msec ping), 1 master/1 slave, with message "{}" got:
+```
+$ go run examples/perfomance/main.go
+Produced 1000000 in 3.423883 sec, rps 292066.022156
+Consumed 151000 in 1.049238 sec, rps 143913.931722
+Acked 151000 in 0.973587 sec, rps 155096.612263
+```
 
 ## Producer example
 
