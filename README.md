@@ -11,21 +11,30 @@ Perfomance is dependent from:
 - ping RTT from client to Redis Cluster master nodes;
 - Ami configuration.
 
-As example, 10-nodes Redis Cluster with half of nodes in other datacenter (50 msec ping) got near 80000 rps produced from one client. Also, consume/produce rps is not maximally optimal now and can be a little bit better.
+As example, 10-nodes Redis Cluster with half of nodes in other datacenter (50 msec ping) got near 80000 rps produced from one client.
 
 ## Producer example
 
 ```
+	type errorLogger struct{}
+
+	func (l *errorLogger) AmiError(err error) {
+		println("Got error from Ami:", err.Error())
+	}
+
 	pr, err := ami.NewProducer(
 		ami.ProducerOptions{
+			ErrorNotifier:     &errorLogger{},
 			Name:              "ruthie",
-			ShardsCount:       10,
 			PendingBufferSize: 10000000,
 			PipeBufferSize:    50000,
 			PipePeriod:        time.Microsecond * 1000,
+			ShardsCount:       10,
 		},
 		&redis.ClusterOptions{
-			Addrs: []string{"172.17.0.1:7001", "172.17.0.1:7002"},
+			Addrs:        []string{"172.17.0.1:7001", "172.17.0.1:7002"},
+			ReadTimeout:  time.Second * 60,
+			WriteTimeout: time.Second * 60,
 		},
 	)
 	if err != nil {
@@ -42,18 +51,27 @@ As example, 10-nodes Redis Cluster with half of nodes in other datacenter (50 ms
 ## Consumer example
 
 ```
+	type errorLogger struct{}
+
+	func (l *errorLogger) AmiError(err error) {
+		println("Got error from Ami:", err.Error())
+	}
+
 	cn, err := ami.NewConsumer(
 		ami.ConsumerOptions{
-			Name:              "ruthie",
 			Consumer:          "alice",
-			ShardsCount:       10,
-			PrefetchCount:     100,
+			ErrorNotifier:     &errorLogger{},
+			Name:              "ruthie",
 			PendingBufferSize: 10000000,
 			PipeBufferSize:    50000,
 			PipePeriod:        time.Microsecond * 1000,
+			PrefetchCount:     100,
+			ShardsCount:       10,
 		},
 		&redis.ClusterOptions{
-			Addrs: []string{"172.17.0.1:7001", "172.17.0.1:7002"},
+			Addrs:        []string{"172.17.0.1:7001", "172.17.0.1:7002"},
+			ReadTimeout:  time.Second * 60,
+			WriteTimeout: time.Second * 60,
 		},
 	)
 	if err != nil {
