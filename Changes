@@ -1,4 +1,4 @@
-2019-03-06 v0.1.9
+unreleased v0.1.9
   - Update vendored redis to 6.15.2.
   - Add error processing with optional ErrorNotifier interface.
   - Use multiple ids in single command to do ACK.
@@ -9,6 +9,7 @@
   - Use "real" pipe period. In previous versions - we wait new message to check
     period, so, old messages can wait a long time in buffer, if there are no
     new messages.
+  - Switch from dep to go modules.
 
 2018-11-30 v0.1.8
   - Fix infinite blocking of consumer in case of no messages.
