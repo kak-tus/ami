@@ -1,6 +1,7 @@
 package ami
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -148,17 +149,26 @@ func (c *Consumer) consume(shard int) {
 
 		for _, s := range res {
 			for _, m := range s.Messages {
+				lastID = m.ID
+
 				msg := Message{
-					// TODO FIX move to failed
-					Body:   m.Values["m"].(string),
 					Group:  group,
 					ID:     m.ID,
 					Stream: stream,
 				}
 
-				c.cCons <- msg
+				v, ok := m.Values["m"]
+				if !ok {
+					if c.notif != nil {
+						c.notif.AmiError(errors.New("Incorrect message format: no \"m\" field in message with id " + m.ID))
+					}
 
-				lastID = msg.ID
+					c.Ack(msg)
+					continue
+				}
+
+				msg.Body = v.(string)
+				c.cCons <- msg
 			}
 		}
 	}

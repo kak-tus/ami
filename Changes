@@ -1,3 +1,6 @@
+2019-03-10 v0.1.10
+  - Check message format in consumer.
+
 2019-03-09 v0.1.9
   - Update vendored redis to 6.15.2.
   - Add error processing with optional ErrorNotifier interface.
