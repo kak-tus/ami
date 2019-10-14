@@ -1,3 +1,6 @@
+2019-10-15 v0.1.12
+  - Latest redis module.
+
 2019-10-15 v0.1.11
   - Improve modules support.
 
