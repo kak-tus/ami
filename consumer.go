@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"git.aqq.me/go/retrier"
 	"github.com/go-redis/redis"
+	"github.com/ssgreg/repeat"
 )
 
 // NewConsumer creates new consumer client for Ami
@@ -31,7 +31,6 @@ func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, er
 		return nil, err
 	}
 
-	retr := retrier.New(retrier.Config{RetryPolicy: []time.Duration{time.Second * 1}})
 	cCons := make(chan Message, opt.PrefetchCount)
 	cAck := make(chan Message, opt.PendingBufferSize)
 
@@ -41,7 +40,6 @@ func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, er
 		cl:     client,
 		notif:  opt.ErrorNotifier,
 		opt:    opt,
-		retr:   retr,
 		wgAck:  &sync.WaitGroup{},
 		wgCons: &sync.WaitGroup{},
 	}
@@ -81,8 +79,6 @@ func (c *Consumer) Stop() {
 func (c *Consumer) Close() {
 	close(c.cAck)
 	c.wgAck.Wait()
-
-	c.retr.Stop()
 }
 
 func (c *Consumer) consume(shard int) {
@@ -112,27 +108,31 @@ func (c *Consumer) consume(shard int) {
 
 		var res []redis.XStream
 
-		err := c.retr.Do(func() *retrier.Error {
-			var err error
+		err := repeat.Repeat(
+			repeat.Fn(func() error {
+				var err error
 
-			res, err = c.cl.rDB.XReadGroup(&redis.XReadGroupArgs{
-				Block:    block,
-				Consumer: c.opt.Consumer,
-				Count:    c.opt.PrefetchCount,
-				Group:    group,
-				Streams:  []string{stream, id},
-			}).Result()
+				res, err = c.cl.rDB.XReadGroup(&redis.XReadGroupArgs{
+					Block:    block,
+					Consumer: c.opt.Consumer,
+					Count:    c.opt.PrefetchCount,
+					Group:    group,
+					Streams:  []string{stream, id},
+				}).Result()
 
-			if err != nil && err != redis.Nil {
-				if c.notif != nil {
-					c.notif.AmiError(err)
+				if err != nil && err != redis.Nil {
+					if c.notif != nil {
+						c.notif.AmiError(err)
+					}
+
+					return repeat.HintTemporary(err)
 				}
 
-				return retrier.NewError(err, false)
-			}
-
-			return nil
-		})
+				return nil
+			}),
+			repeat.StopOnSuccess(),
+			repeat.WithDelay(repeat.FullJitterBackoff(500*time.Millisecond).Set()),
+		)
 
 		if err != nil {
 			if c.notif != nil {
@@ -259,24 +259,28 @@ func (c *Consumer) sendAckStreamWithLock(lst []Message) {
 }
 
 func (c *Consumer) sendAckStream(stream string, group string, ids []string) {
-	err := c.retr.Do(func() *retrier.Error {
-		pipe := c.cl.rDB.TxPipeline()
+	err := repeat.Repeat(
+		repeat.Fn(func() error {
+			pipe := c.cl.rDB.TxPipeline()
 
-		pipe.XAck(stream, group, ids...)
-		pipe.XDel(stream, ids...)
+			pipe.XAck(stream, group, ids...)
+			pipe.XDel(stream, ids...)
 
-		_, err := pipe.Exec()
+			_, err := pipe.Exec()
 
-		if err != nil {
-			if c.notif != nil {
-				c.notif.AmiError(err)
+			if err != nil {
+				if c.notif != nil {
+					c.notif.AmiError(err)
+				}
+
+				return repeat.HintTemporary(err)
 			}
 
-			return retrier.NewError(err, false)
-		}
-
-		return nil
-	})
+			return nil
+		}),
+		repeat.StopOnSuccess(),
+		repeat.WithDelay(repeat.FullJitterBackoff(500*time.Millisecond).Set()),
+	)
 
 	if err != nil && c.notif != nil {
 		c.notif.AmiError(err)

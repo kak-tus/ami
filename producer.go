@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"git.aqq.me/go/retrier"
 	"github.com/go-redis/redis"
+	"github.com/ssgreg/repeat"
 )
 
 // NewProducer creates new producer client for Ami
@@ -30,7 +30,6 @@ func NewProducer(opt ProducerOptions, ropt *redis.ClusterOptions) (*Producer, er
 		return nil, err
 	}
 
-	retr := retrier.New(retrier.Config{RetryPolicy: []time.Duration{time.Second * 1}})
 	c := make(chan string, opt.PendingBufferSize)
 
 	pr := &Producer{
@@ -38,7 +37,6 @@ func NewProducer(opt ProducerOptions, ropt *redis.ClusterOptions) (*Producer, er
 		cl:    client,
 		notif: opt.ErrorNotifier,
 		opt:   opt,
-		retr:  retr,
 		wg:    &sync.WaitGroup{},
 	}
 
@@ -148,24 +146,28 @@ func (p *Producer) sendWithLock(shard int, buf []string) {
 }
 
 func (p *Producer) send(args []redis.XAddArgs) {
-	err := p.retr.Do(func() *retrier.Error {
-		pipe := p.cl.rDB.TxPipeline()
+	err := repeat.Repeat(
+		repeat.Fn(func() error {
+			pipe := p.cl.rDB.TxPipeline()
 
-		for _, m := range args {
-			pipe.XAdd(&m)
-		}
-
-		_, err := pipe.Exec()
-		if err != nil {
-			if p.notif != nil {
-				p.notif.AmiError(err)
+			for _, m := range args {
+				pipe.XAdd(&m)
 			}
 
-			return retrier.NewError(err, false)
-		}
+			_, err := pipe.Exec()
+			if err != nil {
+				if p.notif != nil {
+					p.notif.AmiError(err)
+				}
 
-		return nil
-	})
+				return repeat.HintTemporary(err)
+			}
+
+			return nil
+		}),
+		repeat.StopOnSuccess(),
+		repeat.WithDelay(repeat.FullJitterBackoff(500*time.Millisecond).Set()),
+	)
 
 	if err != nil && p.notif != nil {
 		p.notif.AmiError(err)

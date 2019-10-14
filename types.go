@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"git.aqq.me/go/retrier"
 	"github.com/go-redis/redis"
 )
 
@@ -41,7 +40,6 @@ type Producer struct {
 	cl    *client
 	notif ErrorNotifier
 	opt   ProducerOptions
-	retr  *retrier.Retrier
 	wg    *sync.WaitGroup
 }
 
@@ -114,7 +112,6 @@ type Consumer struct {
 	needStop bool
 	notif    ErrorNotifier
 	opt      ConsumerOptions
-	retr     *retrier.Retrier
 	stopped  bool
 	wgAck    *sync.WaitGroup
 	wgCons   *sync.WaitGroup
