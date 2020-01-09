@@ -95,7 +95,7 @@ func (p *Producer) produce() {
 
 		if idx == int(p.opt.PipeBufferSize) {
 			doSend = true
-		} else if time.Now().Sub(started) >= p.opt.PipePeriod && len(p.c) <= 0 {
+		} else if time.Since(started) >= p.opt.PipePeriod && len(p.c) <= 0 {
 			// Don't send by time if there are more messages in channel
 			// Prefer to collect them in batch to speedup producing
 			doSend = true

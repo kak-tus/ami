@@ -223,7 +223,7 @@ func (c *Consumer) ack() {
 		if cnt[stream] >= int(c.opt.PipeBufferSize) {
 			c.sendAckStreamWithLock(toAck[stream][0:cnt[stream]])
 			cnt[stream] = 0
-		} else if time.Now().Sub(started) >= c.opt.PipePeriod && len(c.cAck) <= 0 {
+		} else if time.Since(started) >= c.opt.PipePeriod && len(c.cAck) <= 0 {
 			// Don't send by time if there are more messages in channel
 			// Prefer to collect them in batch to speedup producing
 			c.sendAckAllStreams(toAck, cnt)
