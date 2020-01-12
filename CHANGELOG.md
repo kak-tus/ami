@@ -1,3 +1,6 @@
+2020-01-12 v0.1.13
+  - Added tests.
+
 2019-10-15 v0.1.12
   - Latest redis module.
 
