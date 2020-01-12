@@ -183,7 +183,7 @@ func (c *Consumer) consume(shard int) {
 
 // Ack acknowledges message
 //
-// Function not only do XACK call, but additionaly it deletes message
+// Function not only do XACK call, but additionally it deletes message
 // from stream with XDELETE.
 // Ack do not do immediately, but pushed to send buffer and sended to Redis
 // in other goroutine.

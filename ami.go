@@ -48,7 +48,7 @@ func (c *client) createShard(stream string, group string) error {
 	xinfo := redis.NewCmd("XINFO", "STREAM", stream)
 
 	err := c.rDB.Process(xinfo)
-	// It is not an error, we only check stream existance
+	// It is not an error, we only check stream existence
 	if err != nil {
 		xgroup := redis.NewCmd("XGROUP", "CREATE", stream, group, "$", "MKSTREAM")
 		err := c.rDB.Process(xgroup)

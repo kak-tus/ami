@@ -73,7 +73,7 @@ type ProducerOptions struct {
 
 	// Limits maximum amount of ACK messages queue. Default 10000000.
 	//
-	// Bigger value got better ACK perfomance and bigger memory usage.
+	// Bigger value got better ACK performance and bigger memory usage.
 	// If you your process dies with big amount of ACKed messages, but not already
 	// sended to Redis - ACKs will be lost and messages will be processed again.
 	PendingBufferSize int64
@@ -81,7 +81,7 @@ type ProducerOptions struct {
 	// Request to Redis sended in pipe mode with setuped numbers of requests in
 	// one batch. Default 50000.
 	//
-	// Bigger value get better perfomance.
+	// Bigger value get better performance.
 	PipeBufferSize int64
 
 	// If there is no full batch collected - pipe will be sended every setuped
@@ -174,7 +174,7 @@ type ConsumerOptions struct {
 	// - limits maximum amount of messages, that will be read from one shard at
 	// one read operation.
 	// Bigger PrefetchCount got bigger memory usage, but can get better
-	// perfomance.
+	// performance.
 	PrefetchCount int64
 
 	// BLOCK option of XREADGROUP Redis command
@@ -189,7 +189,7 @@ type ConsumerOptions struct {
 
 	// Limits maximum amount of ACK messages queue. Default 10000000.
 	//
-	// Bigger value got better ACK perfomance and bigger memory usage.
+	// Bigger value got better ACK performance and bigger memory usage.
 	// If you your process dies with big amount of ACKed messages, but not
 	// already sended to Redis - ACKs will be lost and messages will be
 	// processed again.
@@ -198,7 +198,7 @@ type ConsumerOptions struct {
 	// Request to Redis sended in pipe mode with setuped numbers of requests in
 	// one batch. Default 50000.
 	//
-	// Bigger value get better perfomance.
+	// Bigger value get better performance.
 	PipeBufferSize int64
 
 	// If there is no full batch collected - pipe will be sended every setuped
