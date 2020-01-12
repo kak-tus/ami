@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+	"github.com/imdario/mergo"
 	"github.com/ssgreg/repeat"
 )
 
@@ -21,6 +22,10 @@ import (
 // big messages. And not so strictly for Consumer, because it send big queries
 // with not so big messages (only ids of ACKed messages).
 func NewProducer(opt ProducerOptions, ropt *redis.ClusterOptions) (*Producer, error) {
+	if err := mergo.Merge(&opt, defaultProducerOptions); err != nil {
+		return nil, err
+	}
+
 	client, err := newClient(clientOptions{
 		name:        opt.Name,
 		ropt:        ropt,

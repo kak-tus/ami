@@ -56,7 +56,7 @@ type ProducerOptions struct {
 	// Queue name
 	Name string
 
-	// Shard queue along different Redis Cluster nodes
+	// Shard queue along different Redis Cluster nodes. Default 10.
 	//
 	// Ami queues spreads along cluster by default Redis Cluster ability - shards.
 	// Every queue has setuped number of streams with same name, but with
@@ -71,19 +71,21 @@ type ProducerOptions struct {
 	// this queue.
 	ShardsCount int8
 
-	// Limits maximum amount of ACK messages queue.
+	// Limits maximum amount of ACK messages queue. Default 10000000.
+	//
 	// Bigger value got better ACK perfomance and bigger memory usage.
 	// If you your process dies with big amount of ACKed messages, but not already
 	// sended to Redis - ACKs will be lost and messages will be processed again.
 	PendingBufferSize int64
 
 	// Request to Redis sended in pipe mode with setuped numbers of requests in
-	// one batch.
+	// one batch. Default 50000.
+	//
 	// Bigger value get better perfomance.
 	PipeBufferSize int64
 
 	// If there is no full batch collected - pipe will be sended every setuped
-	// period.
+	// period. Default time.Microsecond * 1000.
 	PipePeriod time.Duration
 
 	// If you set optional ErrorNotifier, you will receiving errors notifications
@@ -147,7 +149,7 @@ type ConsumerOptions struct {
 	// to other and I am thinking, how to do it.
 	Consumer string
 
-	// Shard queue along different Redis Cluster nodes.
+	// Shard queue along different Redis Cluster nodes. Default 10.
 	//
 	// Ami queues spreads along cluster by default Redis Cluster ability - shards.
 	// Every queue has setuped number of streams with same name, but with
@@ -163,6 +165,8 @@ type ConsumerOptions struct {
 	ShardsCount int8
 
 	// Maximum amount of messages that can be read from queue at same time.
+	//  Default 100.
+	//
 	// But this is not real amount of messages, that will only be got from Redis.
 	// Ami preloads some amount of messages from all shards.
 	// So, this value:
@@ -183,7 +187,8 @@ type ConsumerOptions struct {
 	// If you set this value lower then 0 - blocking will not be used.
 	Block time.Duration
 
-	// Limits maximum amount of ACK messages queue.
+	// Limits maximum amount of ACK messages queue. Default 10000000.
+	//
 	// Bigger value got better ACK perfomance and bigger memory usage.
 	// If you your process dies with big amount of ACKed messages, but not
 	// already sended to Redis - ACKs will be lost and messages will be
@@ -191,12 +196,13 @@ type ConsumerOptions struct {
 	PendingBufferSize int64
 
 	// Request to Redis sended in pipe mode with setuped numbers of requests in
-	// one batch.
+	// one batch. Default 50000.
+	//
 	// Bigger value get better perfomance.
 	PipeBufferSize int64
 
 	// If there is no full batch collected - pipe will be sended every setuped
-	// period.
+	// period. Default time.Microsecond * 1000.
 	PipePeriod time.Duration
 
 	// If you set optional ErrorNotifier, you will receiving errors notifications
@@ -208,4 +214,19 @@ type ConsumerOptions struct {
 type ErrorNotifier interface {
 	// Function is called for every error
 	AmiError(error)
+}
+
+var defaultProducerOptions = ProducerOptions{
+	ShardsCount:       10,
+	PendingBufferSize: 10000000,
+	PipeBufferSize:    50000,
+	PipePeriod:        time.Microsecond * 1000,
+}
+
+var defaultConsumerOptions = ConsumerOptions{
+	ShardsCount:       10,
+	PrefetchCount:     100,
+	PendingBufferSize: 10000000,
+	PipeBufferSize:    50000,
+	PipePeriod:        time.Microsecond * 1000,
 }
