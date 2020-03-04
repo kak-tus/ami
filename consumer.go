@@ -147,7 +147,7 @@ func (c *Consumer) consume(shard int) {
 			continue
 		}
 
-		if checkBacklog && len(res[0].Messages) == 0 {
+		if checkBacklog && (len(res) == 0 || len(res[0].Messages) == 0) {
 			checkBacklog = false
 			continue
 		}

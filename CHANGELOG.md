@@ -1,3 +1,7 @@
+2020-03-04 v0.1.14
+  - Use original miniredis for tests.
+  - Fix incorrect responce processing with miniredis (may be with some redis version too).
+
 2020-01-12 v0.1.13
   - Added tests.
 
