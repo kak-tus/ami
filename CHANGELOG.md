@@ -1,6 +1,7 @@
 2020-04-03 v0.1.15
   - Fix small linter warnings.
   - Update redis module to v7.
+  - Add CI.
 
 2020-03-04 v0.1.14
   - Use original miniredis for tests.
