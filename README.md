@@ -5,6 +5,7 @@ Go client to reliable queues based on [Redis Cluster Streams](https://redis.io/t
 [![Godoc](https://godoc.org/github.com/kak-tus/ami?status.svg)](http://godoc.org/github.com/kak-tus/ami)
 [![Coverage](http://gocover.io/_badge/github.com/kak-tus/ami)](https://gocover.io/github.com/kak-tus/ami)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kak-tus/ami)](https://goreportcard.com/report/github.com/kak-tus/ami)
+[![Build Status](https://travis-ci.org/kak-tus/ami.svg?branch=master)](https://travis-ci.org/kak-tus/ami)
 
 ## Consume/produce performance
 
