@@ -37,7 +37,7 @@ jobs:
       uses: coverallsapp/github-action@v1.0.1
       with:
         # 
-        github-token: 
+        github-token: RjEG9WSA9vDYeMP5bmWlhnj2gcKOAYzxN
         # Path to lcov file
         path-to-lcov: # default is ./coverage/lcov.info
         # Set to true if you are running parallel jobs, then use "parallel_finished: true" for the last action.
