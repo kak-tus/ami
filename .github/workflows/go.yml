@@ -8,8 +8,8 @@ on:
 
 jobs:
 
-  build:
-    name: Build
+  coverage:
+    name: Coverage
     runs-on: ubuntu-latest
     steps:
 
@@ -30,10 +30,18 @@ jobs:
             dep ensure
         fi
 
-    - name: Build
-      run: go build -v .
+    - name: Calc coverage
+      run: |
+        go test -v -covermode=count -coverprofile=coverage.out .
+
+    - name: Convert coverage to lcov
+      uses: jandelgado/gcov2lcov-action@v1.0.0
+      with:
+          infile: coverage.out
+          outfile: coverage.lcov        
 
     - name: Coveralls GitHub Action
       uses: coverallsapp/github-action@v1.0.1
       with:
         github-token: RjEG9WSA9vDYeMP5bmWlhnj2gcKOAYzxN
+        path-to-lcov: coverage.lcov
