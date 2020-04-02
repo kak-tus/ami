@@ -50,6 +50,7 @@ func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, er
 	}
 
 	cn.wgAck.Add(1)
+
 	go cn.ack()
 
 	return cn, nil
@@ -61,8 +62,10 @@ func NewConsumer(opt ConsumerOptions, ropt *redis.ClusterOptions) (*Consumer, er
 func (c *Consumer) Start() chan Message {
 	for i := 0; i < int(c.opt.ShardsCount); i++ {
 		c.wgCons.Add(1)
+
 		go c.consume(i)
 	}
+
 	return c.cCons
 }
 
@@ -169,6 +172,7 @@ func (c *Consumer) consume(shard int) {
 					}
 
 					c.Ack(msg)
+
 					continue
 				}
 
@@ -199,8 +203,10 @@ func (c *Consumer) ack() {
 	cnt := make(map[string]int)
 
 	for {
-		var doStop bool
-		var stream string
+		var (
+			doStop bool
+			stream string
+		)
 
 		select {
 		case m, more := <-c.cAck:
@@ -228,7 +234,7 @@ func (c *Consumer) ack() {
 		if cnt[stream] >= int(c.opt.PipeBufferSize) {
 			c.sendAckStreamWithLock(toAck[stream][0:cnt[stream]])
 			cnt[stream] = 0
-		} else if time.Since(started) >= c.opt.PipePeriod && len(c.cAck) <= 0 {
+		} else if time.Since(started) >= c.opt.PipePeriod && len(c.cAck) == 0 {
 			// Don't send by time if there are more messages in channel
 			// Prefer to collect them in batch to speedup producing
 			c.sendAckAllStreams(toAck, cnt)
@@ -257,6 +263,7 @@ func (c *Consumer) sendAckStreamWithLock(lst []Message) {
 	}
 
 	c.wgAck.Add(1)
+
 	go func() {
 		c.sendAckStream(lst[0].Stream, lst[0].Group, ids)
 		c.wgAck.Done()

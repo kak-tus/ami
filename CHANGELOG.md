@@ -1,3 +1,6 @@
+2020-04-03 v0.1.15
+  - Fix small linter warnings.
+
 2020-03-04 v0.1.14
   - Use original miniredis for tests.
   - Fix incorrect responce processing with miniredis (may be with some redis version too).

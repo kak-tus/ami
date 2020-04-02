@@ -46,6 +46,7 @@ func NewProducer(opt ProducerOptions, ropt *redis.ClusterOptions) (*Producer, er
 	}
 
 	pr.wg.Add(1)
+
 	go pr.produce()
 
 	return pr, nil
@@ -98,13 +99,14 @@ func (p *Producer) produce() {
 
 		var doSend bool
 
-		if idx == int(p.opt.PipeBufferSize) {
+		switch {
+		case idx == int(p.opt.PipeBufferSize):
 			doSend = true
-		} else if time.Since(started) >= p.opt.PipePeriod && len(p.c) <= 0 {
+		case time.Since(started) >= p.opt.PipePeriod && len(p.c) == 0:
 			// Don't send by time if there are more messages in channel
 			// Prefer to collect them in batch to speedup producing
 			doSend = true
-		} else {
+		default:
 			doSend = false
 		}
 
@@ -144,6 +146,7 @@ func (p *Producer) sendWithLock(shard int, buf []string) {
 	}
 
 	p.wg.Add(1)
+
 	go func() {
 		p.send(args)
 		p.wg.Done()
