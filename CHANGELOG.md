@@ -3,6 +3,7 @@
   - Update redis module to v7.
   - Add CI.
   - Build badge.
+  - Change coverage badge.
 
 2020-03-04 v0.1.14
   - Use original miniredis for tests.
